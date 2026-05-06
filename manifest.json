@@ -1,0 +1,15 @@
+{
+  "name": "Path to Trust",
+  "short_name": "TrustPath",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f8ff",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/616/616490.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

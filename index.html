@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>הדרך הביתה - מד אמון</title>
-    <link rel="manifest" href="manifest.json">
+    <title>הדרך הביתה - Realtime</title>
     <style>
         body { font-family: system-ui, sans-serif; background: #f0f8ff; color: #333; text-align: center; padding: 20px; }
-        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto; }
         .progress-container { background: #eee; border-radius: 20px; height: 30px; width: 100%; margin: 20px 0; overflow: hidden; }
         .progress-bar { background: #4caf50; height: 100%; width: 0%; transition: width 0.5s; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 5px; }
         .task-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 10px 0; }
-        .pending { color: #ffa500; font-size: 0.8em; }
         .admin-section { display: none; border-top: 2px solid #007bff; margin-top: 30px; padding-top: 20px; }
     </style>
 </head>
@@ -20,11 +18,11 @@
 
     <div class="card">
         <h1>הדרך הביתה 🏠</h1>
-        <p>יתרה לתיקון: <span id="balance">$345</span></p>
+        <p>יתרה לתיקון: <strong id="balance">$345</strong></p>
         <div class="progress-container">
             <div id="progressBar" class="progress-bar"></div>
         </div>
-        <p id="progressText">0/23 בלוקים הושלמו</p>
+        <p id="progressText">טוען נתונים...</p>
     </div>
 
     <div class="card" id="userView">
@@ -34,25 +32,65 @@
             <option value="7">פינוי מדיח ($7)</option>
             <option value="15">ארגון מקלחת ($15)</option>
             <option value="12">שאיבת סלון ($12)</option>
+            <option value="8">שאיבת מטבח ($8)</option>
         </select>
-        <button onclick="submitTask()">שלחי לאישור</button>
+        <br><br>
+        <button onclick="submitTask()">שלחי לאישור הורים</button>
     </div>
 
-    <button onclick="toggleAdmin()">כניסת הורים (Security Gate)</button>
+    <button onclick="toggleAdmin()" style="background: #6c757d; font-size: 12px;">Security Gate (הורים)</button>
 
     <div id="adminView" class="admin-section card">
-        <h3>אישור משימות (ממתינות)</h3>
+        <h3>אישור משימות ממתינות</h3>
         <div id="pendingList"></div>
     </div>
 
-    <script>
-        let totalDebt = 345;
-        let approvedAmount = 0;
-        let pendingTasks = JSON.parse(localStorage.getItem('pendingTasks')) || [];
-        let approvedTasks = JSON.parse(localStorage.getItem('approvedTasks')) || [];
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        function updateUI() {
-            approvedAmount = approvedTasks.reduce((sum, t) => sum + t.value, 0);
+        // --- PASTE YOUR FIREBASE CONFIG HERE ---
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const totalDebt = 345;
+
+        // Sync Data in Real-time
+        onSnapshot(collection(db, "tasks"), (snapshot) => {
+            let approvedAmount = 0;
+            const pendingList = document.getElementById('pendingList');
+            pendingList.innerHTML = '';
+
+            snapshot.forEach((docSnap) => {
+                const task = docSnap.data();
+                const id = docSnap.id;
+
+                if (task.status === "approved") {
+                    approvedAmount += task.value;
+                } else if (task.status === "pending") {
+                    // Only show pending tasks in Admin section
+                    const div = document.createElement('div');
+                    div.className = 'task-item';
+                    div.innerHTML = `
+                        <span>${task.name} ($${task.value})</span>
+                        <button style="background:green" onclick="approveTask('${id}')">אשר</button>
+                    `;
+                    pendingList.appendChild(div);
+                }
+            });
+
+            updateDisplay(approvedAmount);
+        });
+
+        function updateDisplay(approvedAmount) {
             const currentBalance = totalDebt - approvedAmount;
             const progressPercent = (approvedAmount / totalDebt) * 100;
             const blocks = Math.floor(approvedAmount / 15);
@@ -60,48 +98,40 @@
             document.getElementById('balance').innerText = `$${currentBalance}`;
             document.getElementById('progressBar').style.width = `${progressPercent}%`;
             document.getElementById('progressText').innerText = `${blocks}/23 בלוקים הושלמו`;
-
-            // Update Admin List
-            const list = document.getElementById('pendingList');
-            list.innerHTML = '';
-            pendingTasks.forEach((task, index) => {
-                list.innerHTML += `
-                    <div class="task-item">
-                        <span>${task.name} ($${task.value})</span>
-                        <button style="background:green" onclick="approveTask(${index})">אשר</button>
-                    </div>`;
-            });
-            
-            localStorage.setItem('pendingTasks', JSON.stringify(pendingTasks));
-            localStorage.setItem('approvedTasks', JSON.stringify(approvedTasks));
         }
 
-        function submitTask() {
+        // Global functions for buttons
+        window.submitTask = async () => {
             const select = document.getElementById('taskSelect');
             const taskName = select.options[select.selectedIndex].text;
             const taskValue = parseInt(select.value);
-            
-            pendingTasks.push({ name: taskName, value: taskValue });
-            alert("המשימה נשלחה לאישור ההורים");
-            updateUI();
-        }
 
-        function toggleAdmin() {
+            try {
+                await addDoc(collection(db, "tasks"), {
+                    name: taskName,
+                    value: taskValue,
+                    status: "pending",
+                    timestamp: new Date()
+                });
+                alert("נשלח! המתן לאישור מההורים.");
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        };
+
+        window.approveTask = async (id) => {
+            const taskDoc = doc(db, "tasks", id);
+            await updateDoc(taskDoc, { status: "approved" });
+        };
+
+        window.toggleAdmin = () => {
             const pass = prompt("הכנס סיסמת הורה:");
-            if (pass === "1234") { // Change this to your private password
+            if (pass === "6919") {
                 document.getElementById('adminView').style.display = 'block';
             } else {
-                alert("סיסמה שגויה");
+                alert("גישה חסומה");
             }
-        }
-
-        function approveTask(index) {
-            const task = pendingTasks.splice(index, 1)[0];
-            approvedTasks.push(task);
-            updateUI();
-        }
-
-        updateUI();
+        };
     </script>
 </body>
 </html>

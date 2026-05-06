@@ -3,69 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>הדרך הביתה - Realtime</title>
+    <title>הדרך הביתה - Michal's Trust Path</title>
+    <link rel="manifest" href="manifest.json">
     <style>
-        body { font-family: system-ui, sans-serif; background: #f0f8ff; color: #333; text-align: center; padding: 20px; }
-        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto; }
-        .progress-container { background: #eee; border-radius: 20px; height: 30px; width: 100%; margin: 20px 0; overflow: hidden; }
-        .progress-bar { background: #4caf50; height: 100%; width: 0%; transition: width 0.5s; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 5px; }
-        .task-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 10px 0; }
-        .admin-section { display: none; border-top: 2px solid #007bff; margin-top: 30px; padding-top: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f8ff; color: #333; text-align: center; padding: 20px; line-height: 1.6; }
+        .card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 20px; max-width: 450px; margin-left: auto; margin-right: auto; }
+        h1 { color: #2c3e50; font-size: 1.8rem; margin-bottom: 10px; }
+        .balance-label { font-size: 1.1rem; color: #7f8c8d; }
+        .balance-amount { font-size: 2.5rem; font-weight: bold; color: #2ecc71; display: block; margin: 10px 0; }
+        .progress-container { background: #ecf0f1; border-radius: 15px; height: 25px; width: 100%; margin: 20px 0; overflow: hidden; border: 1px solid #dcdde1; }
+        .progress-bar { background: linear-gradient(90deg, #2ecc71, #27ae60); height: 100%; width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 16px; }
+        button { background: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        button:active { transform: scale(0.98); }
+        .admin-btn { background: #95a5a6; font-size: 12px; margin-top: 30px; width: auto; padding: 5px 15px; }
+        .task-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 15px; border-radius: 10px; margin-bottom: 10px; text-align: right; }
+        .approve-btn { background: #2ecc71; width: auto; margin: 0; padding: 8px 15px; }
+        .admin-section { display: none; margin-top: 20px; border-top: 2px dashed #bdc3c7; padding-top: 20px; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h1>הדרך הביתה 🏠</h1>
-        <p>יתרה לתיקון: <strong id="balance">$345</strong></p>
+        <span class="balance-label">יתרה לתיקון</span>
+        <span id="balance" class="balance-amount">$345</span>
         <div class="progress-container">
             <div id="progressBar" class="progress-bar"></div>
         </div>
-        <p id="progressText">טוען נתונים...</p>
+        <p id="progressText" style="font-weight: bold; color: #34495e;">טוען נתונים...</p>
     </div>
 
     <div class="card" id="userView">
-        <h3>דווח על ביצוע משימה</h3>
+        <h3>דיווח על משימה שבוצעה</h3>
         <select id="taskSelect">
             <option value="10">קיפול כביסה ($10)</option>
+            <option value="5">פיזור כביסה בארונות ($5)</option>
             <option value="7">פינוי מדיח ($7)</option>
+            <option value="7">טעינת מדיח ($7)</option>
             <option value="15">ארגון מקלחת ($15)</option>
-            <option value="12">שאיבת סלון ($12)</option>
-            <option value="8">שאיבת מטבח ($8)</option>
+            <option value="12">שאיבת סלון יסודית ($12)</option>
+            <option value="8">שאיבת מטבח ופינת אוכל ($8)</option>
         </select>
-        <br><br>
         <button onclick="submitTask()">שלחי לאישור הורים</button>
     </div>
 
-    <button onclick="toggleAdmin()" style="background: #6c757d; font-size: 12px;">Security Gate (הורים)</button>
+    <button onclick="toggleAdmin()" class="admin-btn">Security Gate (הורים)</button>
 
     <div id="adminView" class="admin-section card">
-        <h3>אישור משימות ממתינות</h3>
+        <h3 style="color: #e67e22;">משימות הממתינות לאישור שלך</h3>
         <div id="pendingList"></div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- PASTE YOUR FIREBASE CONFIG HERE ---
+        // ה-Config האישי שלך
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyBBK0GUCcIu555zBEK54r19_WEedfiw8mc",
+            authDomain: "pathtotrust-f0fbb.firebaseapp.com",
+            projectId: "pathtotrust-f0fbb",
+            storageBucket: "pathtotrust-f0fbb.firebasestorage.app",
+            messagingSenderId: "844636688938",
+            appId: "1:844636688938:web:d2c34a5c6b38bef3dda953",
+            measurementId: "G-33RQFV1HKJ"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const totalDebt = 345;
 
-        // Sync Data in Real-time
+        // האזנה לשינויים במסד הנתונים בזמן אמת
         onSnapshot(collection(db, "tasks"), (snapshot) => {
-            let approvedAmount = 0;
+            let approvedSum = 0;
             const pendingList = document.getElementById('pendingList');
             pendingList.innerHTML = '';
 
@@ -74,33 +85,40 @@
                 const id = docSnap.id;
 
                 if (task.status === "approved") {
-                    approvedAmount += task.value;
+                    approvedSum += task.value;
                 } else if (task.status === "pending") {
-                    // Only show pending tasks in Admin section
                     const div = document.createElement('div');
                     div.className = 'task-item';
                     div.innerHTML = `
-                        <span>${task.name} ($${task.value})</span>
-                        <button style="background:green" onclick="approveTask('${id}')">אשר</button>
+                        <div>
+                            <strong>${task.name}</strong><br>
+                            <small>$${task.value}</small>
+                        </div>
+                        <button class="approve-btn" onclick="approveTask('${id}')">אשר תיקון</button>
                     `;
                     pendingList.appendChild(div);
                 }
             });
 
-            updateDisplay(approvedAmount);
+            updateDisplay(approvedSum);
         });
 
-        function updateDisplay(approvedAmount) {
-            const currentBalance = totalDebt - approvedAmount;
-            const progressPercent = (approvedAmount / totalDebt) * 100;
-            const blocks = Math.floor(approvedAmount / 15);
+        function updateDisplay(approvedSum) {
+            const currentBalance = totalDebt - approvedSum;
+            const progressPercent = Math.min((approvedSum / totalDebt) * 100, 100);
+            const blocks = Math.floor(approvedSum / 15);
 
             document.getElementById('balance').innerText = `$${currentBalance}`;
             document.getElementById('progressBar').style.width = `${progressPercent}%`;
-            document.getElementById('progressText').innerText = `${blocks}/23 בלוקים הושלמו`;
+            document.getElementById('progressText').innerText = `${blocks}/23 בלוקים של אמון הושלמו`;
+            
+            if (currentBalance <= 0) {
+                document.getElementById('balance').innerText = "התיקון הושלם! ❤️";
+                document.getElementById('balance').style.color = "#27ae60";
+            }
         }
 
-        // Global functions for buttons
+        // פונקציות גלובליות לכפתורים
         window.submitTask = async () => {
             const select = document.getElementById('taskSelect');
             const taskName = select.options[select.selectedIndex].text;
@@ -111,25 +129,29 @@
                     name: taskName,
                     value: taskValue,
                     status: "pending",
-                    timestamp: new Date()
+                    createdAt: serverTimestamp()
                 });
-                alert("נשלח! המתן לאישור מההורים.");
+                alert("דיווח נשלח לאבא לאישור. כל הכבוד על המאמץ!");
             } catch (e) {
-                console.error("Error adding document: ", e);
+                alert("שגיאה בשליחה: " + e.message);
             }
         };
 
         window.approveTask = async (id) => {
-            const taskDoc = doc(db, "tasks", id);
-            await updateDoc(taskDoc, { status: "approved" });
+            const taskRef = doc(db, "tasks", id);
+            await updateDoc(taskRef, { 
+                status: "approved",
+                approvedAt: serverTimestamp()
+            });
         };
 
         window.toggleAdmin = () => {
-            const pass = prompt("הכנס סיסמת הורה:");
-            if (pass === "6919") {
+            const pass = prompt("הכנס סיסמת אבטחה לאישור המשימה:");
+            if (pass === "1234") { // הסיסמה שלך
                 document.getElementById('adminView').style.display = 'block';
+                window.scrollTo(0, document.body.scrollHeight);
             } else {
-                alert("גישה חסומה");
+                alert("סיסמה שגויה.");
             }
         };
     </script>

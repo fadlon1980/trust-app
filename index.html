@@ -9,24 +9,25 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f8ff; color: #333; text-align: center; padding: 20px; line-height: 1.6; }
         .card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 20px; max-width: 450px; margin-left: auto; margin-right: auto; }
         h1 { color: #2c3e50; font-size: 1.8rem; margin-bottom: 10px; }
-        .balance-label { font-size: 1.1rem; color: #7f8c8d; }
         .balance-amount { font-size: 2.5rem; font-weight: bold; color: #2ecc71; display: block; margin: 10px 0; }
         .progress-container { background: #ecf0f1; border-radius: 15px; height: 25px; width: 100%; margin: 20px 0; overflow: hidden; border: 1px solid #dcdde1; }
         .progress-bar { background: linear-gradient(90deg, #2ecc71, #27ae60); height: 100%; width: 0%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
         select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 16px; }
         button { background: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
-        button:active { transform: scale(0.98); }
         .admin-btn { background: #95a5a6; font-size: 12px; margin-top: 30px; width: auto; padding: 5px 15px; }
-        .task-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 15px; border-radius: 10px; margin-bottom: 10px; text-align: right; }
+        .penalty-btn { background: #e74c3c; font-size: 14px; }
+        .bonus-btn { background: #27ae60; font-weight: bold; margin-bottom: 20px; }
+        .task-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 15px; border-radius: 10px; margin-bottom: 10px; text-align: right; border-right: 5px solid #3498db; }
         .approve-btn { background: #2ecc71; width: auto; margin: 0; padding: 8px 15px; }
         .admin-section { display: none; margin-top: 20px; border-top: 2px dashed #bdc3c7; padding-top: 20px; }
+        .penalty-list-item { border-right: 5px solid #e74c3c; background: #fff5f5; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h1>הדרך הביתה 🏠</h1>
-        <span class="balance-label">יתרה לתיקון</span>
+        <span style="color: #7f8c8d;">יתרה לתיקון</span>
         <span id="balance" class="balance-amount">$345</span>
         <div class="progress-container">
             <div id="progressBar" class="progress-bar"></div>
@@ -35,15 +36,14 @@
     </div>
 
     <div class="card" id="userView">
-        <h3>דיווח על משימה שבוצעה</h3>
+        <h3>דווח על משימה שבוצעה</h3>
         <select id="taskSelect">
             <option value="10">קיפול כביסה ($10)</option>
             <option value="5">פיזור כביסה בארונות ($5)</option>
-            <option value="7">פינוי מדיח ($7)</option>
-            <option value="7">טעינת מדיח ($7)</option>
+            <option value="7">פינוי/טעינת מדיח ($7)</option>
             <option value="15">ארגון מקלחת ($15)</option>
-            <option value="12">שאיבת סלון יסודית ($12)</option>
-            <option value="8">שאיבת מטבח ופינת אוכל ($8)</option>
+            <option value="12">שאיבת סלון ($12)</option>
+            <option value="8">שאיבת מטבח ($8)</option>
         </select>
         <button onclick="submitTask()">שלחי לאישור הורים</button>
     </div>
@@ -51,7 +51,15 @@
     <button onclick="toggleAdmin()" class="admin-btn">Security Gate (הורים)</button>
 
     <div id="adminView" class="admin-section card">
-        <h3 style="color: #e67e22;">משימות הממתינות לאישור שלך</h3>
+        <h3 style="color: #e67e22;">ניהול משמעת ואמון</h3>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <button onclick="quickPenalty('הברזה (Y)', 20)" class="penalty-btn">הברזה ($20)</button>
+            <button onclick="quickPenalty('שקר מפורש', 30)" class="penalty-btn">שקר ($30)</button>
+        </div>
+        
+        <button onclick="applyBonus('בונוס יושרה (דיווח עצמי)', 10)" class="bonus-btn">⭐ בונוס יושרה ואמת ($10)</button>
+        
         <div id="pendingList"></div>
     </div>
 
@@ -59,7 +67,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // ה-Config האישי שלך
+        // --- הדבק כאן את ה-CONFIG האישי שלך ---
         const firebaseConfig = {
             apiKey: "AIzaSyBBK0GUCcIu555zBEK54r19_WEedfiw8mc",
             authDomain: "pathtotrust-f0fbb.firebaseapp.com",
@@ -69,91 +77,3 @@
             appId: "1:844636688938:web:d2c34a5c6b38bef3dda953",
             measurementId: "G-33RQFV1HKJ"
         };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const totalDebt = 345;
-
-        // האזנה לשינויים במסד הנתונים בזמן אמת
-        onSnapshot(collection(db, "tasks"), (snapshot) => {
-            let approvedSum = 0;
-            const pendingList = document.getElementById('pendingList');
-            pendingList.innerHTML = '';
-
-            snapshot.forEach((docSnap) => {
-                const task = docSnap.data();
-                const id = docSnap.id;
-
-                if (task.status === "approved") {
-                    approvedSum += task.value;
-                } else if (task.status === "pending") {
-                    const div = document.createElement('div');
-                    div.className = 'task-item';
-                    div.innerHTML = `
-                        <div>
-                            <strong>${task.name}</strong><br>
-                            <small>$${task.value}</small>
-                        </div>
-                        <button class="approve-btn" onclick="approveTask('${id}')">אשר תיקון</button>
-                    `;
-                    pendingList.appendChild(div);
-                }
-            });
-
-            updateDisplay(approvedSum);
-        });
-
-        function updateDisplay(approvedSum) {
-            const currentBalance = totalDebt - approvedSum;
-            const progressPercent = Math.min((approvedSum / totalDebt) * 100, 100);
-            const blocks = Math.floor(approvedSum / 15);
-
-            document.getElementById('balance').innerText = `$${currentBalance}`;
-            document.getElementById('progressBar').style.width = `${progressPercent}%`;
-            document.getElementById('progressText').innerText = `${blocks}/23 בלוקים של אמון הושלמו`;
-            
-            if (currentBalance <= 0) {
-                document.getElementById('balance').innerText = "התיקון הושלם! ❤️";
-                document.getElementById('balance').style.color = "#27ae60";
-            }
-        }
-
-        // פונקציות גלובליות לכפתורים
-        window.submitTask = async () => {
-            const select = document.getElementById('taskSelect');
-            const taskName = select.options[select.selectedIndex].text;
-            const taskValue = parseInt(select.value);
-
-            try {
-                await addDoc(collection(db, "tasks"), {
-                    name: taskName,
-                    value: taskValue,
-                    status: "pending",
-                    createdAt: serverTimestamp()
-                });
-                alert("דיווח נשלח לאבא לאישור. כל הכבוד על המאמץ!");
-            } catch (e) {
-                alert("שגיאה בשליחה: " + e.message);
-            }
-        };
-
-        window.approveTask = async (id) => {
-            const taskRef = doc(db, "tasks", id);
-            await updateDoc(taskRef, { 
-                status: "approved",
-                approvedAt: serverTimestamp()
-            });
-        };
-
-        window.toggleAdmin = () => {
-            const pass = prompt("הכנס סיסמת אבטחה לאישור המשימה:");
-            if (pass === "0306") { // הסיסמה שלך
-                document.getElementById('adminView').style.display = 'block';
-                window.scrollTo(0, document.body.scrollHeight);
-            } else {
-                alert("סיסמה שגויה.");
-            }
-        };
-    </script>
-</body>
-</html>

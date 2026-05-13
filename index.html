@@ -16,7 +16,8 @@
         button { background: #3498db; color: white; border: none; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
         .admin-btn { background: #95a5a6; font-size: 12px; margin-top: 30px; width: auto; padding: 5px 15px; }
         .penalty-btn { background: #e74c3c; font-size: 14px; }
-        .bonus-btn { background: #27ae60; font-weight: bold; margin-bottom: 20px; }
+        .bonus-btn { background: #27ae60; font-weight: bold; margin-bottom: 10px; }
+        .counter-box { background: #f8f9fa; border: 1px dashed #bdc3c7; border-radius: 10px; padding: 10px; margin-bottom: 15px; font-size: 14px; color: #2c3e50; }
         .task-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 15px; border-radius: 10px; margin-bottom: 10px; text-align: right; border-right: 5px solid #3498db; }
         .approve-btn { background: #2ecc71; width: auto; margin: 0; padding: 8px 15px; }
         .admin-section { display: none; margin-top: 20px; border-top: 2px dashed #bdc3c7; padding-top: 20px; }
@@ -52,12 +53,18 @@
     <div id="adminView" class="admin-section card">
         <h3 style="color: #e67e22;">ניהול משמעת ואמון</h3>
         
+        <div class="counter-box">
+            📊 <strong>מונה עבודה:</strong> <span id="taskCounter">0</span> משימות אושרו.<br>
+            <small>(עוזר לך לדעת מתי להעניק בונוס רצף)</small>
+        </div>
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
             <button onclick="quickPenalty('הברזה (Y)', 20)" class="penalty-btn">הברזה ($20)</button>
             <button onclick="quickPenalty('שקר מפורש', 30)" class="penalty-btn">שקר ($30)</button>
         </div>
         
         <button onclick="applyBonus('בונוס יושרה (דיווח עצמי)', 10)" class="bonus-btn">⭐ בונוס יושרה ואמת ($10)</button>
+        <button onclick="applyBonus('בונוס רצף עבודה', 10)" class="bonus-btn" style="background: #f1c40f; color: #2c3e50;">🔥 בונוס רצף משימות ($10)</button>
         
         <div id="pendingList"></div>
     </div>
@@ -66,7 +73,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Verified Configuration based on your shared data
         const firebaseConfig = {
             apiKey: "AIzaSyBBK0GUCcIu555zBEK54r19_WEedfiw8mc",
             authDomain: "pathtotrust-f0fbb.firebaseapp.com",
@@ -83,6 +89,7 @@
 
         onSnapshot(collection(db, "tasks"), (snapshot) => {
             let approvedSum = 0;
+            let workTaskCount = 0;
             const pendingList = document.getElementById('pendingList');
             pendingList.innerHTML = '';
 
@@ -92,6 +99,10 @@
 
                 if (task.status === "approved") {
                     approvedSum += task.value;
+                    // סופר רק משימות עבודה אמיתיות (לא בונוסים ולא קנסות)
+                    if (!task.name.includes("✅") && !task.name.includes("⚠️")) {
+                        workTaskCount++;
+                    }
                 } else if (task.status === "pending") {
                     const div = document.createElement('div');
                     div.className = 'task-item';
@@ -100,10 +111,10 @@
                     pendingList.appendChild(div);
                 }
             });
-            updateDisplay(approvedSum);
+            updateDisplay(approvedSum, workTaskCount);
         });
 
-        function updateDisplay(approvedSum) {
+        function updateDisplay(approvedSum, workTaskCount) {
             const currentBalance = totalDebt - approvedSum;
             const progressPercent = Math.max(0, Math.min((approvedSum / totalDebt) * 100, 100));
             const blocks = Math.max(0, Math.floor(approvedSum / 15));
@@ -114,6 +125,7 @@
             
             document.getElementById('progressBar').style.width = `${progressPercent}%`;
             document.getElementById('progressText').innerText = `${blocks}/23 בלוקים של אמון הושלמו`;
+            document.getElementById('taskCounter').innerText = workTaskCount;
         }
 
         window.submitTask = async () => {
